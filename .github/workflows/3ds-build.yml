@@ -1,4 +1,4 @@
-name: Build 3DS (No Makefile, No wget, No curl)
+name: Build 3DS (Container DevkitPro)
 
 on:
   push:
@@ -8,73 +8,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    container:
+      image: devkitpro/devkitarm:latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # -----------------------------
-      # SYSTEM DEPENDENCIES ONLY
-      # -----------------------------
-      - name: Install system tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git imagemagick build-essential xz-utils gnupg ca-certificates
-
-      # -----------------------------
-      # DEVKITPRO VIA APT (NO EXTERNAL DOWNLOADS)
-      # -----------------------------
-      - name: Install DevkitPro from apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y devkitpro-pacman
-
-      # -----------------------------
-      # ENV SETUP
-      # -----------------------------
-      - name: Setup environment
-        run: |
-          echo "DEVKITPRO=/opt/devkitpro" >> $GITHUB_ENV
-          echo "/opt/devkitpro/tools/bin" >> $GITHUB_PATH
-          echo "/opt/devkitpro/devkitARM/bin" >> $GITHUB_PATH
-
-      # -----------------------------
-      # INSTALL TOOLCHAIN
-      # -----------------------------
-      - name: Install 3DS toolchain
-        run: |
-          sudo dkp-pacman -Syu --noconfirm
-          sudo dkp-pacman -S --noconfirm devkitARM 3ds-dev bannertool tex3ds
-
-      # -----------------------------
-      # BUILD ELF (NO MAKEFILE)
-      # -----------------------------
-      - name: Compile ELF
+      - name: Build ELF (no Makefile)
         run: |
           arm-none-eabi-gcc main.c -o main.elf \
-          -I$DEVKITPRO/libctru/include \
-          -L$DEVKITPRO/libctru/lib \
+          -I/opt/devkitpro/libctru/include \
+          -L/opt/devkitpro/libctru/lib \
           -lctru -lm
 
-      # -----------------------------
-      # ICON
-      # -----------------------------
-      - name: Build ICON (.icn)
+      - name: Generate ICON
         run: |
+          apt-get update
+          apt-get install -y imagemagick
+
           convert icon.png -resize 48x48 icon.bmp
           tex3ds -i icon.bmp -o icon.t3x
           bannertool maketex -i icon.t3x -o icon.icn
 
-      # -----------------------------
-      # BANNER
-      # -----------------------------
-      - name: Build BANNER (.bnr)
+      - name: Generate BANNER
         run: |
           convert banner.png -resize 256x128 banner.bmp
           bannertool makebanner -i banner.bmp -o banner.bnr
 
-      # -----------------------------
-      # UPLOAD RESULT
-      # -----------------------------
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
