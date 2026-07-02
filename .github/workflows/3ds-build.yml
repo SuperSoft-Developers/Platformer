@@ -1,0 +1,78 @@
+name: Build 3DS (No Makefile)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git imagemagick ca-certificates gnupg xz-utils build-essential
+
+      - name: Add DevkitPro repo
+        run: |
+          echo "deb https://apt.devkitpro.org stable main" | sudo tee /etc/apt/sources.list.d/devkitpro.list
+          sudo apt-get update
+
+      - name: Install devkitPro
+        run: |
+          sudo apt-get install -y devkitpro-pacman
+
+      - name: Setup env
+        run: |
+          echo "DEVKITPRO=/opt/devkitpro" >> $GITHUB_ENV
+          echo "DEVKITARM=/opt/devkitpro/devkitARM" >> $GITHUB_ENV
+          echo "/opt/devkitpro/devkitARM/bin" >> $GITHUB_PATH
+          echo "/opt/devkitpro/tools/bin" >> $GITHUB_PATH
+
+      - name: Install 3DS toolchain
+        run: |
+          sudo dkp-pacman -Syu --noconfirm
+          sudo dkp-pacman -S --noconfirm devkitARM 3ds-dev bannertool tex3ds
+
+      # -----------------------------
+      # COMPILE MAIN.C -> ELF (SEM MAKEFILE)
+      # -----------------------------
+      - name: Compile ELF manually
+        run: |
+          arm-none-eabi-gcc main.c -o main.elf \
+          -I$DEVKITPRO/libctru/include \
+          -L$DEVKITPRO/libctru/lib \
+          -lctru -lm
+
+      # -----------------------------
+      # ICON (.icn)
+      # -----------------------------
+      - name: Generate ICON
+        run: |
+          convert icon.png -resize 48x48 icon.bmp
+          tex3ds -i icon.bmp -o icon.t3x
+          bannertool maketex -i icon.t3x -o icon.icn
+
+      # -----------------------------
+      # BANNER (.bnr)
+      # -----------------------------
+      - name: Generate BANNER
+        run: |
+          convert banner.png -resize 256x128 banner.bmp
+          bannertool makebanner -i banner.bmp -o banner.bnr
+
+      # -----------------------------
+      # Upload results
+      # -----------------------------
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3ds-build
+          path: |
+            *.elf
+            *.icn
+            *.bnr
