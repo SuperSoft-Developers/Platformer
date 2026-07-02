@@ -1,4 +1,4 @@
-name: Build 3DS (No Makefile, No curl)
+name: Build 3DS (No Makefile, No wget, No curl)
 
 on:
   push:
@@ -13,25 +13,23 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------
-      # ONLY SYSTEM DEPS (NO curl)
+      # SYSTEM DEPENDENCIES ONLY
       # -----------------------------
-      - name: Install system deps
+      - name: Install system tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y git imagemagick build-essential xz-utils gnupg
+          sudo apt-get install -y git imagemagick build-essential xz-utils gnupg ca-certificates
 
       # -----------------------------
-      # INSTALL DEVKITPRO VIA OFFICIAL SCRIPT (NO curl USED HERE)
+      # DEVKITPRO VIA APT (NO EXTERNAL DOWNLOADS)
       # -----------------------------
-      - name: Install DevkitPro (safe method)
+      - name: Install DevkitPro from apt
         run: |
-          sudo apt-get install -y wget
-          wget https://apt.devkitpro.org/install-devkitpro-pacman
-          chmod +x install-devkitpro-pacman
-          sudo ./install-devkitpro-pacman
+          sudo apt-get update
+          sudo apt-get install -y devkitpro-pacman
 
       # -----------------------------
-      # SET ENV
+      # ENV SETUP
       # -----------------------------
       - name: Setup environment
         run: |
@@ -40,9 +38,9 @@ jobs:
           echo "/opt/devkitpro/devkitARM/bin" >> $GITHUB_PATH
 
       # -----------------------------
-      # INSTALL 3DS TOOLCHAIN
+      # INSTALL TOOLCHAIN
       # -----------------------------
-      - name: Install 3DS tools
+      - name: Install 3DS toolchain
         run: |
           sudo dkp-pacman -Syu --noconfirm
           sudo dkp-pacman -S --noconfirm devkitARM 3ds-dev bannertool tex3ds
@@ -50,7 +48,7 @@ jobs:
       # -----------------------------
       # BUILD ELF (NO MAKEFILE)
       # -----------------------------
-      - name: Build ELF
+      - name: Compile ELF
         run: |
           arm-none-eabi-gcc main.c -o main.elf \
           -I$DEVKITPRO/libctru/include \
@@ -60,7 +58,7 @@ jobs:
       # -----------------------------
       # ICON
       # -----------------------------
-      - name: Build ICON
+      - name: Build ICON (.icn)
         run: |
           convert icon.png -resize 48x48 icon.bmp
           tex3ds -i icon.bmp -o icon.t3x
@@ -69,13 +67,13 @@ jobs:
       # -----------------------------
       # BANNER
       # -----------------------------
-      - name: Build BANNER
+      - name: Build BANNER (.bnr)
         run: |
           convert banner.png -resize 256x128 banner.bmp
           bannertool makebanner -i banner.bmp -o banner.bnr
 
       # -----------------------------
-      # UPLOAD
+      # UPLOAD RESULT
       # -----------------------------
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
