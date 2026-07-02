@@ -1,4 +1,4 @@
-name: Build 3DS (No Makefile)
+name: Build 3DS (No Makefile, No curl)
 
 on:
   push:
@@ -12,36 +12,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      # -----------------------------
+      # ONLY SYSTEM DEPS (NO curl)
+      # -----------------------------
+      - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y git imagemagick ca-certificates gnupg xz-utils build-essential
+          sudo apt-get install -y git imagemagick build-essential xz-utils gnupg
 
-      - name: Add DevkitPro repo
+      # -----------------------------
+      # INSTALL DEVKITPRO VIA OFFICIAL SCRIPT (NO curl USED HERE)
+      # -----------------------------
+      - name: Install DevkitPro (safe method)
         run: |
-          echo "deb https://apt.devkitpro.org stable main" | sudo tee /etc/apt/sources.list.d/devkitpro.list
-          sudo apt-get update
+          sudo apt-get install -y wget
+          wget https://apt.devkitpro.org/install-devkitpro-pacman
+          chmod +x install-devkitpro-pacman
+          sudo ./install-devkitpro-pacman
 
-      - name: Install devkitPro
-        run: |
-          sudo apt-get install -y devkitpro-pacman
-
-      - name: Setup env
+      # -----------------------------
+      # SET ENV
+      # -----------------------------
+      - name: Setup environment
         run: |
           echo "DEVKITPRO=/opt/devkitpro" >> $GITHUB_ENV
-          echo "DEVKITARM=/opt/devkitpro/devkitARM" >> $GITHUB_ENV
-          echo "/opt/devkitpro/devkitARM/bin" >> $GITHUB_PATH
           echo "/opt/devkitpro/tools/bin" >> $GITHUB_PATH
+          echo "/opt/devkitpro/devkitARM/bin" >> $GITHUB_PATH
 
-      - name: Install 3DS toolchain
+      # -----------------------------
+      # INSTALL 3DS TOOLCHAIN
+      # -----------------------------
+      - name: Install 3DS tools
         run: |
           sudo dkp-pacman -Syu --noconfirm
           sudo dkp-pacman -S --noconfirm devkitARM 3ds-dev bannertool tex3ds
 
       # -----------------------------
-      # COMPILE MAIN.C -> ELF (SEM MAKEFILE)
+      # BUILD ELF (NO MAKEFILE)
       # -----------------------------
-      - name: Compile ELF manually
+      - name: Build ELF
         run: |
           arm-none-eabi-gcc main.c -o main.elf \
           -I$DEVKITPRO/libctru/include \
@@ -49,24 +58,24 @@ jobs:
           -lctru -lm
 
       # -----------------------------
-      # ICON (.icn)
+      # ICON
       # -----------------------------
-      - name: Generate ICON
+      - name: Build ICON
         run: |
           convert icon.png -resize 48x48 icon.bmp
           tex3ds -i icon.bmp -o icon.t3x
           bannertool maketex -i icon.t3x -o icon.icn
 
       # -----------------------------
-      # BANNER (.bnr)
+      # BANNER
       # -----------------------------
-      - name: Generate BANNER
+      - name: Build BANNER
         run: |
           convert banner.png -resize 256x128 banner.bmp
           bannertool makebanner -i banner.bmp -o banner.bnr
 
       # -----------------------------
-      # Upload results
+      # UPLOAD
       # -----------------------------
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
